@@ -1,6 +1,10 @@
 package main
 
 import (
+	"strings"
+	"os/exec"
+	"bufio"
+	"runtime"
 	"io/ioutil"
 	"os/user"
 	"path/filepath"
@@ -16,20 +20,40 @@ const (
 )
 type cmd string
 
+func (c cmd) run(t string) {
+	var cmd *exec.Cmd
+	cm, flag := c.format(t)
+	cmd = exec.Command(cm, flag)
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+
+func (c cmd) format(t string) (string, string) {
+	t = strings.Trim(t, "\n")
+	if runtime.GOOS == "windows" {
+		return "cmd", fmt.Sprintf("/c %s %s.md", c, t)
+	}
+	return "sh", fmt.Sprintf("-s %s %s.md", c, t)
+}
+
 var conf = &Config{}
 type Config struct {
-	Path   string
-	OutDir string
-	Edit   cmd
-	ServerPort int
-	TemplateFile string
+	Path   string `toml:"path"`
+	OutDir string `toml:"outdir"`
+	Edit   cmd    `toml:"edit"`
+	ServerPort int`toml:"serverport"`
+	TemplateFile string `toml:"templatefile`
+	assetsDir string `toml:"assetsdir"`
 }
 
 func (c *Config) read(p string){
 	f, _ := os.Open(p)
 	b, _ := ioutil.ReadAll(f)
-	if _, err := toml.Decode(string(b), &conf); err == nil {
-		fmt.Printf("%+v", conf)
+	if _, err := toml.Decode(string(b), &conf); err != nil {
+		panic(err)
 	}
 }
 
@@ -99,6 +123,10 @@ var command = []cli.Command{
 }
 
 func new(c *cli.Context) error {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Printf("Enter Title:")
+	t, _ := reader.ReadString('\n')
+	conf.Edit.run(t)
 	return nil
 }
 func list(c *cli.Context) error {
@@ -122,6 +150,6 @@ func main() {
 	app.Commands = command
 	app.Version = version
 	app.Name = name
-	app.Run(os.Args)
 	conf.init()
+	app.Run(os.Args)
 }
