@@ -64,53 +64,41 @@ var command = []cli.Command{
 		Name: "new",
 		Aliases: []string{"n"},
 		Usage:   "add new note file",
-		Action:  func(c *cli.Context) error {
-			return nil
-		},
+		Action:  new,
 	},
 	{
 		Name: "list",
 		Aliases: []string{"l"},
 		Usage:   "show note file list",
-		Action:  func(c *cli.Context) error {
-			return nil
-		},
+		Action:  list,
 	},
 	{
 		Name: "remove",
 		Aliases: []string{"r"},
 		Usage:   "remove note file",
-		Action:  func(c *cli.Context) error {
-			return nil
-		},
+		Action:  remove,
 	},
 	{
 		Name: "todo",
 		Aliases: []string{"t"},
 		Usage:   "todo list",
-		Action:  func(c *cli.Context) error {
-			return nil
-		},
+		Action:  todo,
 	},
 	{
 		Name: "grep",
 		Aliases: []string{"g"},
 		Usage:   "grep file",
-		Action:  func(c *cli.Context) error {
-			return nil
-		},
+		Action:  grep,
 	},
 	{
 		Name: "config",
 		Aliases: []string{"c"},
 		Usage:   "edit config file.",
-		Action:  func(c *cli.Context) error {
-			return nil
-		},
+		Action:  editConf,
 	},
 }
 
-func add(c *cli.Context) error {
+func new(c *cli.Context) error {
 	return nil
 }
 func list(c *cli.Context) error {
@@ -121,9 +109,11 @@ func remove(c *cli.Context) error {
 }
 func todo(c *cli.Context) error {
 	return nil
-
 }
 func grep(c *cli.Context) error {
+	return nil
+}
+func editConf(c *cli.Context) error {
 	return nil
 }
 
