@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sort"
 	"time"
 	"strings"
 	"os/exec"
@@ -86,6 +87,26 @@ func (c *Config) createConfigFile(h, p string){
 	defer f.Close()
 }
 
+type FileList []os.FileInfo
+
+func (f FileList) Len() int {
+	return len(f)
+}
+
+func (f FileList) Less(i, j int) bool {
+	b := f[i].ModTime().Sub(f[j].ModTime())
+	if b > 0 {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (f FileList) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
+
 var command = []cli.Command{
 	{
 		Name: "new",
@@ -154,6 +175,12 @@ func new(c *cli.Context) error {
 	return nil
 }
 func list(c *cli.Context) error {
+	var fs FileList
+	fs, _ = ioutil.ReadDir(conf.OutDir)
+	sort.Sort(fs)
+	for _, f := range fs {
+		fmt.Println(f.Name())
+	}
 	return nil
 }
 func remove(c *cli.Context) error {
@@ -166,6 +193,7 @@ func grep(c *cli.Context) error {
 	return nil
 }
 func editConf(c *cli.Context) error {
+	conf.Edit.run(conf.Path)
 	return nil
 }
 
