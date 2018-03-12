@@ -1,6 +1,7 @@
 package main
 
 import (
+	"time"
 	"strings"
 	"os/exec"
 	"bufio"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"fmt"
 	"os"
+	"text/template"
 	"github.com/urfave/cli"
 	"github.com/BurntSushi/toml"
 )
@@ -18,6 +20,8 @@ const (
 	name = "whs"
 	serverPort = 10290
 )
+var textTml = `# {{.Title}} 
+`
 type cmd string
 
 func (c cmd) run(t string) {
@@ -32,11 +36,10 @@ func (c cmd) run(t string) {
 
 
 func (c cmd) format(t string) (string, string) {
-	t = strings.Trim(t, "\n")
 	if runtime.GOOS == "windows" {
-		return "cmd", fmt.Sprintf("/c %s %s.md", c, t)
+		return "cmd", fmt.Sprintf("/c %s %s", c, t)
 	}
-	return "sh", fmt.Sprintf("-s %s %s.md", c, t)
+	return "sh", fmt.Sprintf("-s %s %s", c, t)
 }
 
 var conf = &Config{}
@@ -62,17 +65,17 @@ func (c *Config) init() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	p := filepath.Join(usr.HomeDir, "whs.toml")
+	p := filepath.Join(usr.HomeDir, ".whs.toml")
 	if _, err := os.Stat(p); os.IsNotExist(err) {
-		c.createConfigFile(p)
+		c.createConfigFile(usr.HomeDir, p)
 	}
 	c.read(p)
 }
 
-func (c *Config) createConfigFile(p string){
+func (c *Config) createConfigFile(h, p string){
 	f, _ := os.Create(p)
 	c.Path = p
-	c.OutDir = filepath.Join(p, "_post")
+	c.OutDir = filepath.Join(h, "whs", "_post")
 	c.ServerPort = serverPort
 	c.Edit = "vim"
 	e := toml.NewEncoder(f)
@@ -123,10 +126,31 @@ var command = []cli.Command{
 }
 
 func new(c *cli.Context) error {
+	var f *os.File
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Printf("Enter Title:")
-	t, _ := reader.ReadString('\n')
-	conf.Edit.run(t)
+
+	os.MkdirAll(conf.OutDir, os.ModePerm)
+
+	title, _ := reader.ReadString('\n')
+	t := time.Now()
+	title = strings.TrimSpace(title)
+	fileName := filepath.Join(conf.OutDir, t.Format("2006-01-02_") + title + ".md")
+	if _, err := os.Stat(fileName); os.IsNotExist(err) {
+		f, _ = os.Create(fileName)
+	} else {
+		fmt.Println("file is exist")
+		os.Exit(0)
+	}
+
+	tml, _ := template.New("newPost").Parse(textTml)
+	tml.Execute(f, struct{
+		Title string
+	}{
+		Title: title,
+	})
+
+	conf.Edit.run(fileName)
 	return nil
 }
 func list(c *cli.Context) error {
