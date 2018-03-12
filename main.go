@@ -1,62 +1,70 @@
 package main
 
 import (
-	"sync"
-	"sort"
-	"time"
-	"strings"
-	"os/exec"
 	"bufio"
-	"runtime"
+	"fmt"
 	"io/ioutil"
+	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
-	"fmt"
-	"os"
+	"runtime"
+	"sort"
+	"strings"
+	"sync"
 	"text/template"
-	"github.com/urfave/cli"
+	"time"
+
 	"github.com/BurntSushi/toml"
+	"github.com/urfave/cli"
 )
 
 var mu sync.WaitGroup
+
 const (
-	version = "0.1"
-	name = "whs"
+	version    = "0.1"
+	name       = "whs"
 	serverPort = 10290
 )
+
 var textTml = `# {{.Title}} 
 `
+
 type cmd string
 
 func (c cmd) run(t string) {
 	var cmd *exec.Cmd
-	cm, flag := c.format(t)
-	cmd = exec.Command(cm, flag)
+	cm, param, flag := c.format(t)
+	fmt.Println(cm, flag)
+	cmd = exec.Command(cm, param, flag)
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
 	err := cmd.Run()
 	if err != nil {
+		fmt.Println("sdfdsf")
 		fmt.Println(err)
 	}
 }
 
-
-func (c cmd) format(t string) (string, string) {
+func (c cmd) format(t string) (string, string, string) {
 	if runtime.GOOS == "windows" {
-		return "cmd", fmt.Sprintf("/c %s %s", c, t)
+		return "cmd", "/c ", fmt.Sprintf("%s %s", c, t)
 	}
-	return "sh", fmt.Sprintf("-s %s %s", c, t)
+	return "sh", "-c", fmt.Sprintf("%s %s", c, t)
 }
 
 var conf = &Config{}
+
 type Config struct {
-	Path   string `toml:"path"`
-	OutDir string `toml:"outdir"`
-	Edit   cmd    `toml:"edit"`
-	ServerPort int`toml:"serverport"`
+	Path         string `toml:"path"`
+	OutDir       string `toml:"outdir"`
+	Edit         cmd    `toml:"edit"`
+	ServerPort   int    `toml:"serverport"`
 	TemplateFile string `toml:"templatefile`
-	assetsDir string `toml:"assetsdir"`
+	assetsDir    string `toml:"assetsdir"`
 }
 
-func (c *Config) read(p string){
+func (c *Config) read(p string) {
 	f, _ := os.Open(p)
 	b, _ := ioutil.ReadAll(f)
 	if _, err := toml.Decode(string(b), &conf); err != nil {
@@ -76,7 +84,7 @@ func (c *Config) init() {
 	c.read(p)
 }
 
-func (c *Config) createConfigFile(h, p string){
+func (c *Config) createConfigFile(h, p string) {
 	f, _ := os.Create(p)
 	c.Path = p
 	c.OutDir = filepath.Join(h, "whs", "_post")
@@ -100,9 +108,8 @@ func (f FileList) Less(i, j int) bool {
 	b := f[i].ModTime().Sub(f[j].ModTime())
 	if b > 0 {
 		return true
-	} else {
-		return false
 	}
+	return false
 }
 
 func (f FileList) Swap(i, j int) {
@@ -110,48 +117,48 @@ func (f FileList) Swap(i, j int) {
 }
 
 type Results struct {
-	Name string
-	LineNo int
+	Name        string
+	LineNo      int
 	LineContext string
 }
 
-func (r Results) string() string{
+func (r Results) string() string {
 	return fmt.Sprintf("%d %s %s\n", r.LineNo, r.Name, r.LineContext)
 }
 
 var command = []cli.Command{
 	{
-		Name: "new",
+		Name:    "new",
 		Aliases: []string{"n"},
 		Usage:   "add new note file",
 		Action:  new,
 	},
 	{
-		Name: "list",
+		Name:    "list",
 		Aliases: []string{"l"},
 		Usage:   "show note file list",
 		Action:  list,
 	},
 	{
-		Name: "remove",
+		Name:    "remove",
 		Aliases: []string{"r"},
 		Usage:   "remove note file",
 		Action:  remove,
 	},
 	{
-		Name: "todo",
+		Name:    "todo",
 		Aliases: []string{"t"},
 		Usage:   "todo list",
 		Action:  todo,
 	},
 	{
-		Name: "grep",
+		Name:    "grep",
 		Aliases: []string{"g"},
 		Usage:   "grep file",
 		Action:  grep,
 	},
 	{
-		Name: "config",
+		Name:    "config",
 		Aliases: []string{"c"},
 		Usage:   "edit config file.",
 		Action:  editConf,
@@ -168,20 +175,21 @@ func new(c *cli.Context) error {
 	title, _ := reader.ReadString('\n')
 	t := time.Now()
 	title = strings.TrimSpace(title)
-	fileName := filepath.Join(conf.OutDir, t.Format("2006-01-02_") + title + ".md")
+	fileName := filepath.Join(conf.OutDir, t.Format("2006-01-02_")+title+".md")
 	if _, err := os.Stat(fileName); os.IsNotExist(err) {
 		f, _ = os.Create(fileName)
 	} else {
-		fmt.Println("file is exist")
-		os.Exit(0)
+		conf.Edit.run(fileName)
+		return nil
 	}
 
 	tml, _ := template.New("newPost").Parse(textTml)
-	tml.Execute(f, struct{
+	tml.Execute(f, struct {
 		Title string
 	}{
 		Title: title,
 	})
+	defer f.Close()
 
 	conf.Edit.run(fileName)
 	return nil
@@ -213,9 +221,9 @@ func grep(c *cli.Context) error {
 				b := strings.Index(scan.Text(), word)
 				if b != -1 {
 					fmt.Print(Results{
-						Name: f.Name(),
+						Name:        f.Name(),
 						LineContext: scan.Text(),
-						LineNo: index,
+						LineNo:      index,
 					}.string())
 				}
 				index++
@@ -224,7 +232,7 @@ func grep(c *cli.Context) error {
 		}(f)
 		mu.Add(1)
 	}
-	mu.Wait();
+	mu.Wait()
 	return nil
 }
 func editConf(c *cli.Context) error {
