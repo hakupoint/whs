@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sync"
 	"sort"
 	"time"
 	"strings"
@@ -16,6 +17,8 @@ import (
 	"github.com/urfave/cli"
 	"github.com/BurntSushi/toml"
 )
+
+var mu sync.WaitGroup
 const (
 	version = "0.1"
 	name = "whs"
@@ -106,6 +109,15 @@ func (f FileList) Swap(i, j int) {
 	f[i], f[j] = f[j], f[i]
 }
 
+type Results struct {
+	Name string
+	LineNo int
+	LineContext string
+}
+
+func (r Results) string() string{
+	return fmt.Sprintf("%d %s %s\n", r.LineNo, r.Name, r.LineContext)
+}
 
 var command = []cli.Command{
 	{
@@ -190,6 +202,29 @@ func todo(c *cli.Context) error {
 	return nil
 }
 func grep(c *cli.Context) error {
+	var word = c.Args().Get(0)
+	fs, _ := ioutil.ReadDir(conf.OutDir)
+	for _, f := range fs {
+		go func(f os.FileInfo) {
+			fi, _ := os.Open(filepath.Join(conf.OutDir, f.Name()))
+			scan := bufio.NewScanner(fi)
+			index := 1
+			for scan.Scan() {
+				b := strings.Index(scan.Text(), word)
+				if b != -1 {
+					fmt.Print(Results{
+						Name: f.Name(),
+						LineContext: scan.Text(),
+						LineNo: index,
+					}.string())
+				}
+				index++
+			}
+			mu.Done()
+		}(f)
+		mu.Add(1)
+	}
+	mu.Wait();
 	return nil
 }
 func editConf(c *cli.Context) error {
