@@ -118,12 +118,19 @@ func (f FileList) Swap(i, j int) {
 
 type Results struct {
 	Name        string
-	LineNo      int
-	LineContext string
+	Line        []struct{
+		LineNo int
+		LineContext string
+	}
 }
 
-func (r Results) string() string {
-	return fmt.Sprintf("%d %s %s\n", r.LineNo, r.Name, r.LineContext)
+func (r Results) Print() {
+	if len(r.Line) > 0 {
+		fmt.Printf("\n%s\n", r.Name)
+	}
+	for _, v := range r.Line {
+		fmt.Printf("%d:-> %s\n", v.LineNo, v.LineContext)
+	}
 }
 
 var command = []cli.Command{
@@ -217,17 +224,22 @@ func grep(c *cli.Context) error {
 			fi, _ := os.Open(filepath.Join(conf.OutDir, f.Name()))
 			scan := bufio.NewScanner(fi)
 			index := 1
+			var result Results
 			for scan.Scan() {
 				b := strings.Index(scan.Text(), word)
 				if b != -1 {
-					fmt.Print(Results{
-						Name:        f.Name(),
+					result.Name = f.Name()
+					result.Line = append(result.Line, struct{
+						LineNo int
+						LineContext string
+					}{
+						LineNo: index,
 						LineContext: scan.Text(),
-						LineNo:      index,
-					}.string())
+					})
 				}
 				index++
 			}
+			result.Print()
 			mu.Done()
 		}(f)
 		mu.Add(1)
