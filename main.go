@@ -218,14 +218,20 @@ func todo(c *cli.Context) error {
 }
 func grep(c *cli.Context) error {
 	var word = c.Args().Get(0)
+	var results []Results
+	if word == "" {
+		os.Exit(0)
+	}
 	fs, _ := ioutil.ReadDir(conf.OutDir)
 	for _, f := range fs {
+		mu.Add(1)
 		go func(f os.FileInfo) {
 			fi, _ := os.Open(filepath.Join(conf.OutDir, f.Name()))
 			scan := bufio.NewScanner(fi)
 			index := 1
 			var result Results
-			for scan.Scan() {
+			
+			for scan.Scan(){
 				b := strings.Index(scan.Text(), word)
 				if b != -1 {
 					result.Name = f.Name()
@@ -239,12 +245,14 @@ func grep(c *cli.Context) error {
 				}
 				index++
 			}
-			result.Print()
+			results = append(results, result)
 			mu.Done()
 		}(f)
-		mu.Add(1)
 	}
 	mu.Wait()
+	for _, resu := range results {
+		resu.Print()
+	}
 	return nil
 }
 func editConf(c *cli.Context) error {
